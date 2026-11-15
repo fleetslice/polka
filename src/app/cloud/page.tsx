@@ -6,10 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ACCEPT } from '@/components/Header';
 import { db, SYNCED_TABLES } from '@/lib/db';
 import { deviceId } from '@/lib/device';
-import { useDevices, useOnline } from '@/lib/hooks';
+import { useDevices, useOnline, useSyncEmail } from '@/lib/hooks';
 import { filesFromDrop, importFiles } from '@/lib/import';
 import { formatSize, relativeDay } from '@/lib/progress';
-import { syncConfigured } from '@/lib/sync';
+import { signIn, signOut, signUp, syncConfigured, syncNow } from '@/lib/sync';
 
 const FORMATS: { name: string; note: string; ready: boolean }[] = [
   { name: 'EPUB', note: 'основной, с оглавлением', ready: true },
@@ -213,9 +213,10 @@ export default function CloudPage() {
           </ul>
           <p className="mt-3 text-[13px]">
             {syncConfigured()
-              ? 'Синхронизируются позиция, прогресс по главам, выделения, заметки и полки. Офлайн — читаешь скачанное, изменения уйдут при сети.'
+              ? 'Синхронизируются позиция, прогресс по главам, выделения, заметки и полки. Сам файл книги нужно закинуть на каждое устройство — прогресс подхватится.'
               : 'Вкладки этого браузера уже в синхроне. Чтобы подключить телефон и планшет, задай ключи Supabase (см. README) — тогда позиция, выделения, заметки и полки поедут между устройствами.'}
           </p>
+          {syncConfigured() && <Account />}
         </section>
 
         <section aria-labelledby="more-h" className="mt-8 border border-line p-5">
@@ -226,5 +227,72 @@ export default function CloudPage() {
         </section>
       </aside>
     </div>
+  );
+}
+
+/** Вход владельца: один и тот же аккаунт на всех устройствах включает синхронизацию между ними. */
+function Account() {
+  const email = useSyncEmail();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const field = 'mt-1 w-full min-h-[44px] rounded-[22px] border border-[#55524b] bg-white px-4 text-[15px] text-ink';
+
+  const run = async (kind: 'in' | 'up', form: HTMLFormElement): Promise<void> => {
+    const data = new FormData(form);
+    const mail = String(data.get('email') ?? '').trim();
+    const password = String(data.get('password') ?? '');
+    if (!mail || password.length < 6) return setMessage('Нужны почта и пароль не короче 6 символов.');
+    setBusy(true);
+    setMessage('');
+    if (kind === 'in') setMessage((await signIn(mail, password)) ?? '');
+    else {
+      const res = await signUp(mail, password);
+      setMessage(res.error ?? (res.confirm ? 'Аккаунт создан. Открой письмо от Supabase, подтверди почту и нажми «Войти».' : ''));
+    }
+    setBusy(false);
+  };
+
+  if (email === undefined) return <p className="mt-4 font-mono text-[12px]">Проверяю вход…</p>;
+  if (email) {
+    return (
+      <div className="mt-4 border-t border-[#b9b4aa] pt-4">
+        <p className="text-[14px]">Вход выполнен: <strong>{email}</strong></p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className="pill pill-sm" style={{ color: 'var(--ink)', borderColor: 'var(--ink)' }} disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setMessage('');
+              void syncNow().then((err) => {
+                setMessage(err ?? 'Синхронизировано.');
+                setBusy(false);
+              });
+            }}>
+            {busy ? 'Синхронизирую…' : 'Синхронизировать сейчас'}
+          </button>
+          <button type="button" className="pill pill-sm" style={{ color: 'var(--ink)', borderColor: 'var(--ink)' }} onClick={() => void signOut()}>Выйти</button>
+        </div>
+        <p role="status" className="mt-2 text-[13px]">{message}</p>
+      </div>
+    );
+  }
+  return (
+    <form className="mt-4 border-t border-[#b9b4aa] pt-4" onSubmit={(e) => {
+      e.preventDefault();
+      void run('in', e.currentTarget);
+    }}>
+      <p className="text-[14px] font-semibold">Войди, чтобы устройства синхронизировались</p>
+      <label className="mt-3 block text-[13px]">Почта
+        <input name="email" type="email" autoComplete="email" required className={field} />
+      </label>
+      <label className="mt-2 block text-[13px]">Пароль
+        <input name="password" type="password" autoComplete="current-password" required minLength={6} className={field} />
+      </label>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="submit" className="pill pill-sm" style={{ background: 'var(--ink)', color: 'var(--text)', borderColor: 'var(--ink)' }} disabled={busy}>Войти</button>
+        <button type="button" className="pill pill-sm" style={{ color: 'var(--ink)', borderColor: 'var(--ink)' }} disabled={busy}
+          onClick={(e) => void run('up', e.currentTarget.form!)}>Создать аккаунт</button>
+      </div>
+      <p role="status" className="mt-2 text-[13px]">{message}</p>
+    </form>
   );
 }

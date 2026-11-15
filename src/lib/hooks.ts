@@ -2,6 +2,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db } from './db';
+import { onAuth, syncConfigured } from './sync';
 import type { Book, Shelf } from './types';
 
 const alive = <T extends { deleted?: 0 | 1 }>(list: T[]): T[] => list.filter((x) => !x.deleted);
@@ -44,3 +45,10 @@ export function useMediaQuery(query: string): boolean {
 /** Последняя открытая книга — для пунктов меню «Читаю» и «ИИ-толкователь». */
 export const lastBook = (books: Book[] | undefined): Book | undefined =>
   books?.filter((b) => b.lastReadAt).sort((a, b) => (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0))[0] ?? books?.[0];
+
+/** E-mail вошедшего владельца; null — не вошёл; undefined — ещё проверяем. */
+export function useSyncEmail(): string | null | undefined {
+  const [email, setEmail] = useState<string | null | undefined>(syncConfigured() ? undefined : null);
+  useEffect(() => (syncConfigured() ? onAuth(setEmail) : undefined), []);
+  return email;
+}

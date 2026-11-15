@@ -3,7 +3,7 @@ import { Search, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useRef } from 'react';
-import { lastBook, useBooks, useDevices, useOnline } from '@/lib/hooks';
+import { lastBook, useBooks, useDevices, useOnline, useSyncEmail } from '@/lib/hooks';
 import { importFiles } from '@/lib/import';
 import { plural } from '@/lib/progress';
 import { syncConfigured } from '@/lib/sync';
@@ -25,12 +25,15 @@ export function useNav() {
 export function SyncStatus() {
   const devices = useDevices();
   const online = useOnline();
+  const email = useSyncEmail();
   const n = devices?.length ?? 1;
   const label = !online
     ? 'офлайн · догонит при сети'
-    : syncConfigured()
-      ? `${n} ${plural(n, ['устройство', 'устройства', 'устройств'])} · синхр.`
-      : 'только это устройство';
+    : !syncConfigured()
+      ? 'только это устройство'
+      : email
+        ? `${n} ${plural(n, ['устройство', 'устройства', 'устройств'])} · синхр.`
+        : 'войди, чтобы синхронизировать';
   return (
     <Link href="/cloud#devices" className="mono hidden items-center gap-2 no-underline lg:inline-flex" style={{ minHeight: 44 }}>
       <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: online ? 'var(--accent)' : 'var(--muted)' }} />

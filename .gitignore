@@ -7,6 +7,7 @@ playwright-report/
 .env
 .env.*
 !.env.example
+!.env.production
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

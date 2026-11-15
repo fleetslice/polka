@@ -102,6 +102,77 @@ export async function pullAll(): Promise<number> {
   return applied;
 }
 
+/* ── Вход владельца ── */
+
+export async function currentEmail(): Promise<string | null> {
+  const sb = await supabase();
+  if (!sb) return null;
+  const { data } = await sb.auth.getSession();
+  return data.session?.user.email ?? null;
+}
+
+/** Вход по e-mail и паролю. Возвращает текст ошибки или null. */
+export async function signIn(email: string, password: string): Promise<string | null> {
+  const sb = await supabase();
+  if (!sb) return 'Синхронизация не настроена.';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (!error) return null;
+  if (/confirm/i.test(error.message)) return 'Почта ещё не подтверждена: открой письмо от Supabase и нажми на ссылку, потом войди снова.';
+  if (/invalid/i.test(error.message)) return 'Неверная почта или пароль. Если аккаунта ещё нет — нажми «Создать аккаунт».';
+  return `Не получилось войти: ${error.message}`;
+}
+
+/** Регистрация. 'confirm' — нужно подтвердить почту по ссылке из письма. */
+export async function signUp(email: string, password: string): Promise<{ error: string | null; confirm: boolean }> {
+  const sb = await supabase();
+  if (!sb) return { error: 'Синхронизация не настроена.', confirm: false };
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) return { error: /registered/i.test(error.message) ? 'Такой аккаунт уже есть — нажми «Войти».' : `Не получилось создать аккаунт: ${error.message}`, confirm: false };
+  return { error: null, confirm: !data.session };
+}
+
+export async function signOut(): Promise<void> {
+  await (await supabase())?.auth.signOut();
+}
+
+/** Подписка на вход и выход. Возвращает функцию отписки. */
+export function onAuth(cb: (email: string | null) => void): () => void {
+  let unsub = (): void => {};
+  let stopped = false;
+  void supabase().then((sb) => {
+    if (!sb || stopped) return;
+    void sb.auth.getSession().then(({ data }) => cb(data.session?.user.email ?? null));
+    const { data } = sb.auth.onAuthStateChange((_event, session) => cb(session?.user.email ?? null));
+    unsub = () => data.subscription.unsubscribe();
+  });
+  return () => {
+    stopped = true;
+    unsub();
+  };
+}
+
+/** Одна попытка обмена: отправить очередь и забрать новое. Возвращает текст ошибки или null. */
+export async function syncNow(): Promise<string | null> {
+  try {
+    const sb = await supabase();
+    if (!sb) return 'Синхронизация не настроена.';
+    const { data } = await sb.auth.getSession();
+    if (!data.session) return 'Сначала войди в аккаунт.';
+    const probe = await sb.from('records').select('key').limit(1);
+    if (probe.error) {
+      return /relation|does not exist|schema cache|not find/i.test(probe.error.message)
+        ? 'В базе Supabase нет таблицы records: выполни SQL из supabase/migrations/0001_init.sql в SQL Editor.'
+        : `Supabase ответил ошибкой: ${probe.error.message}`;
+    }
+    await pushOutbox();
+    await pullAll();
+    await db.meta.put({ key: 'sync.lastOk', value: Date.now() });
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Нет связи с сервером.';
+  }
+}
+
 /** Запускает фоновую синхронизацию. Возвращает функцию остановки. */
 export function startSync(): () => void {
   if (!syncConfigured() || typeof window === 'undefined') return () => {};
@@ -116,20 +187,29 @@ export function startSync(): () => void {
       /* попробуем на следующем цикле */
     }
   };
-  void (async () => {
-    const sb = await supabase();
-    if (!sb || stopped) return;
-    channel = sb.channel('records').on('postgres_changes', { event: '*', schema: 'public', table: 'records' }, (payload) => {
-      const r = payload.new as { tbl?: string; data?: Synced & Record<string, unknown> };
-      if (r?.tbl && r.data && SYNCED_TABLES.includes(r.tbl as SyncedTable)) void applyRemote(r.tbl as SyncedTable, r.data);
-    }).subscribe();
-    await tick();
-  })();
+  // Канал Realtime открывается после входа (RLS отдаёт строки только владельцу) и закрывается при выходе.
+  const stopAuth = onAuth((email) => {
+    void (async () => {
+      const sb = await supabase();
+      if (!sb || stopped) return;
+      if (!email) {
+        channel?.unsubscribe();
+        channel = null;
+        return;
+      }
+      channel ??= sb.channel('records').on('postgres_changes', { event: '*', schema: 'public', table: 'records' }, (payload) => {
+        const r = payload.new as { tbl?: string; data?: Synced & Record<string, unknown> };
+        if (r?.tbl && r.data && SYNCED_TABLES.includes(r.tbl as SyncedTable)) void applyRemote(r.tbl as SyncedTable, r.data);
+      }).subscribe();
+      await tick();
+    })();
+  });
   const timer = window.setInterval(() => void tick(), 20_000);
   const onOnline = (): void => void tick();
   window.addEventListener('online', onOnline);
   return () => {
     stopped = true;
+    stopAuth();
     window.clearInterval(timer);
     window.removeEventListener('online', onOnline);
     channel?.unsubscribe();
