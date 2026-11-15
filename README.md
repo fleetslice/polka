@@ -70,6 +70,11 @@ npm run dev
 docker compose up --build
 ```
 
+### Netlify
+
+В репозитории есть `netlify.toml`. В Netlify: Add new site → Import an existing project → GitHub → этот репозиторий и ветка.
+Команда сборки и папка подставятся сами. Ключ `ANTHROPIC_API_KEY` (если нужен ИИ) задаётся в Site configuration → Environment variables.
+
 ### Supabase
 
 Применить `supabase/migrations/0001_init.sql` (таблица `records` с RLS, функция `upsert_record`, приватный бакет `books`),
