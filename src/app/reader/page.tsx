@@ -17,7 +17,8 @@ import { readingSpeed, readingStreak, todayStats } from '@/lib/progress';
 import { pageFor } from '@/lib/rag';
 import { snippet } from '@/lib/search';
 import { ACCENTS, useSettings, type ReaderTheme } from '@/lib/settings';
-import type { ChapterContent, HighlightColor, Locator } from '@/lib/types';
+import type { Book, ChapterContent, HighlightColor, Locator } from '@/lib/types';
+import { downloadBook } from '@/lib/cloudFiles';
 
 const THEMES: Record<ReaderTheme, { label: string; bg: string; fg: string }> = {
   night: { label: 'Ночь', bg: 'var(--night-bg)', fg: 'var(--night-fg)' },
@@ -531,17 +532,7 @@ function Reader({ id }: { id: string }) {
       </div>
     );
   }
-  if (!chapters.length) {
-    return (
-      <div className="page pt-16">
-        <h1 className="display text-[clamp(28px,5vw,48px)]">{book.title}<span className="dot">.</span></h1>
-        <p className="mt-4 max-w-[560px] text-[17px] text-text-2">
-          Запись о книге есть, а самого файла на этом устройстве нет. Закинь тот же файл в «Облаке» — прогресс, выделения и заметки подхватятся.
-        </p>
-        <Link href="/cloud" className="pill pill-accent mt-6">Закинуть файл</Link>
-      </div>
-    );
-  }
+  if (!chapters.length) return <FromCloud book={book} />;
   if (!loc || !chapter) return <p className="mono p-8">Открываю книгу…</p>;
 
   const bookPct = Math.round(totalProgress(rows) * 100);
@@ -881,6 +872,43 @@ function AudioView({ bookId, start, onTime }: { bookId: string; start: number; o
             const sec = Math.floor(e.currentTarget.currentTime);
             if (sec % 5 === 0) onTime(sec);
           }} />
+      )}
+    </div>
+  );
+}
+
+/** Файла книги на этом устройстве нет — скачиваем его из облака сами. */
+function FromCloud({ book }: { book: Book }) {
+  const [state, setState] = useState<'loading' | 'error'>('loading');
+  const [message, setMessage] = useState('');
+  const started = useRef(false);
+  const run = useCallback(() => {
+    setState('loading');
+    void downloadBook(book).then((err) => {
+      if (err) {
+        setMessage(err);
+        setState('error');
+      }
+    });
+  }, [book]);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    run();
+  }, [run]);
+  return (
+    <div className="page pt-16" aria-live="polite">
+      <h1 className="display text-[clamp(28px,5vw,48px)]">{book.title}<span className="dot">.</span></h1>
+      {state === 'loading' ? (
+        <p className="mono mt-4">Скачиваю книгу из облака…</p>
+      ) : (
+        <>
+          <p className="mt-4 max-w-[560px] text-[17px] text-text-2">{message}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button type="button" className="pill pill-accent" onClick={run}>Попробовать ещё раз</button>
+            <Link href="/cloud" className="pill">Закинуть файл вручную</Link>
+          </div>
+        </>
       )}
     </div>
   );

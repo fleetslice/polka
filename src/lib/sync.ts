@@ -183,6 +183,8 @@ export function startSync(): () => void {
     try {
       await pushOutbox();
       await pullAll();
+      // Файлы книг — в облако, чтобы другие устройства могли их скачать.
+      void import('./cloudFiles').then((m) => m.uploadAll()).catch(() => undefined);
     } catch {
       /* попробуем на следующем цикле */
     }

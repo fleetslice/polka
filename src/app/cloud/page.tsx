@@ -10,6 +10,7 @@ import { useDevices, useOnline, useSyncEmail } from '@/lib/hooks';
 import { filesFromDrop, importFiles } from '@/lib/import';
 import { formatSize, relativeDay } from '@/lib/progress';
 import { signIn, signOut, signUp, syncConfigured, syncNow } from '@/lib/sync';
+import { uploadAll } from '@/lib/cloudFiles';
 
 const FORMATS: { name: string; note: string; ready: boolean }[] = [
   { name: 'EPUB', note: 'основной, с оглавлением', ready: true },
@@ -262,8 +263,19 @@ function Account() {
             onClick={() => {
               setBusy(true);
               setMessage('');
-              void syncNow().then((err) => {
-                setMessage(err ?? 'Синхронизировано.');
+              void syncNow().then(async (err) => {
+                if (err) {
+                  setMessage(err);
+                  setBusy(false);
+                  return;
+                }
+                setMessage('Синхронизировано. Загружаю книги в облако…');
+                const r = await uploadAll((done, total) => setMessage(`Загружаю книги в облако: ${done} из ${total}`));
+                setMessage([
+                  r.uploaded ? `Книг загружено в облако: ${r.uploaded}.` : 'Синхронизировано, все книги уже в облаке.',
+                  r.tooBig.length ? `Больше 50 МБ, не влезли: ${r.tooBig.join(', ')}.` : '',
+                  r.failed ? `Не загрузилось: ${r.failed} — проверь, что в Supabase выполнен SQL для хранилища книг.` : '',
+                ].filter(Boolean).join(' '));
                 setBusy(false);
               });
             }}>
