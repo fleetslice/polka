@@ -1,13 +1,19 @@
 import type { Metadata, Viewport } from 'next';
-import { Golos_Text, JetBrains_Mono, Literata, Unbounded } from 'next/font/google';
+// Шрифты лежат в проекте (@fontsource): сборке не нужен доступ к Google Fonts.
+import '@fontsource/unbounded/600.css';
+import '@fontsource/unbounded/800.css';
+import '@fontsource/golos-text/400.css';
+import '@fontsource/golos-text/500.css';
+import '@fontsource/golos-text/600.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/600.css';
+import '@fontsource/literata/400.css';
+import '@fontsource/literata/600.css';
+import '@fontsource/literata/400-italic.css';
 import './globals.css';
 import { Chrome } from '@/components/Chrome';
 import { BASE } from '@/lib/base';
 
-const display = Unbounded({ subsets: ['latin', 'cyrillic'], weight: ['600', '800'], variable: '--font-display', display: 'swap' });
-const ui = Golos_Text({ subsets: ['latin', 'cyrillic'], weight: ['400', '500', '600'], variable: '--font-ui', display: 'swap' });
-const mono = JetBrains_Mono({ subsets: ['latin', 'cyrillic'], weight: ['400', '600'], variable: '--font-mono', display: 'swap' });
-const book = Literata({ subsets: ['latin', 'cyrillic'], weight: ['400', '600'], style: ['normal', 'italic'], variable: '--font-book', display: 'swap' });
 
 export const metadata: Metadata = {
   title: { default: 'ПОЛКА. — личная библиотека', template: '%s — ПОЛКА.' },
@@ -21,7 +27,7 @@ export const viewport: Viewport = { themeColor: '#121211', width: 'device-width'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" className={`${display.variable} ${ui.variable} ${mono.variable} ${book.variable}`}>
+    <html lang="ru">
       <body>
         <Chrome>{children}</Chrome>
       </body>

@@ -28,7 +28,10 @@
   
   
   
-  /* --font-display (Unbounded), --font-ui (Golos Text), --font-mono (JetBrains Mono), --font-book (Literata) задаёт next/font */
+  --font-display: 'Unbounded', sans-serif;
+  --font-ui: 'Golos Text', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-book: 'Literata', Georgia, serif;
 
   /* Кегли */
   --fs-hero: clamp(44px, 10.4vw, 132px);
