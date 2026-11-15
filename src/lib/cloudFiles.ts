@@ -21,6 +21,17 @@ async function session(): Promise<{ sb: NonNullable<Awaited<ReturnType<typeof su
 }
 
 export type UploadResult = 'uploaded' | 'already' | 'too-big' | 'no-file' | 'no-session' | 'error';
+/** Текст последней ошибки облака — показывается на экране, чтобы было видно причину. */
+export let lastCloudError = '';
+
+/** Понятное объяснение ошибки Supabase Storage. */
+export function explainStorageError(message: string): string {
+  if (/bucket not found/i.test(message)) return 'В Supabase нет хранилища «books»: выполни SQL для хранилища книг в SQL Editor.';
+  if (/row-level security|unauthorized|403/i.test(message)) return 'Supabase не пускает к хранилищу: выполни SQL для хранилища книг (правило «books: своя папка») в SQL Editor.';
+  if (/not found|404|object/i.test(message)) return 'В облаке этой книги нет. Открой сайт на ноутбуке, обнови страницу и нажми «Синхронизировать сейчас» — книга загрузится.';
+  if (/payload too large|maximum allowed size|413/i.test(message)) return 'Файл больше 50 МБ — бесплатное облако Supabase его не принимает.';
+  return `Облако ответило ошибкой: ${message}`;
+}
 
 export async function uploadBook(book: Book): Promise<UploadResult> {
   const mark = `cloud:${book.hash}`;
@@ -33,7 +44,10 @@ export async function uploadBook(book: Book): Promise<UploadResult> {
   const { error } = await s.sb.storage.from(BUCKET).upload(pathFor(s.userId, book), file.blob, {
     upsert: true, contentType: 'application/octet-stream',
   });
-  if (error && !/exists|duplicate/i.test(error.message)) return 'error';
+  if (error && !/exists|duplicate/i.test(error.message)) {
+    lastCloudError = explainStorageError(error.message);
+    return /too large|maximum allowed size|413/i.test(error.message) ? 'too-big' : 'error';
+  }
   await db.meta.put({ key: mark, value: Date.now() });
   return 'uploaded';
 }
@@ -71,9 +85,12 @@ export async function downloadBook(book: Book): Promise<string | null> {
   if (!s) return 'Войди в аккаунт на экране «Облако», чтобы скачать книгу.';
   const { data, error } = await s.sb.storage.from(BUCKET).download(pathFor(s.userId, book));
   if (error || !data) {
-    return book.size > CLOUD_FILE_LIMIT
-      ? 'Файл больше 50 МБ — в бесплатное облако Supabase он не помещается. Закинь его на это устройство вручную.'
-      : 'В облаке этой книги пока нет. Открой сайт на устройстве, где она лежит, — она загрузится сама.';
+    if (book.size > CLOUD_FILE_LIMIT) return 'Файл больше 50 МБ — в бесплатное облако Supabase он не помещается. Закинь его на это устройство вручную.';
+    // У ошибки скачивания Supabase часто пустой текст, а код — в originalError.status.
+    const e = error as (Error & { status?: number; statusCode?: string; originalError?: { status?: number } }) | null;
+    const status = e?.originalError?.status ?? e?.status ?? Number(e?.statusCode);
+    const text = [e?.message, status ? String(status) : ''].filter(Boolean).join(' ');
+    return explainStorageError(status === 400 || status === 404 ? 'not found' : text || 'нет ответа');
   }
   const name = `${book.title}.${EXT[book.format] ?? book.format}`;
   const res = await importFile(new File([data], name), { addedFrom: book.addedFrom });

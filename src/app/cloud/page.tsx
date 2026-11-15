@@ -10,7 +10,7 @@ import { useDevices, useOnline, useSyncEmail } from '@/lib/hooks';
 import { filesFromDrop, importFiles } from '@/lib/import';
 import { formatSize, relativeDay } from '@/lib/progress';
 import { signIn, signOut, signUp, syncConfigured, syncNow } from '@/lib/sync';
-import { uploadAll } from '@/lib/cloudFiles';
+import { lastCloudError, uploadAll } from '@/lib/cloudFiles';
 
 const FORMATS: { name: string; note: string; ready: boolean }[] = [
   { name: 'EPUB', note: 'основной, с оглавлением', ready: true },
@@ -274,7 +274,7 @@ function Account() {
                 setMessage([
                   r.uploaded ? `Книг загружено в облако: ${r.uploaded}.` : 'Синхронизировано, все книги уже в облаке.',
                   r.tooBig.length ? `Больше 50 МБ, не влезли: ${r.tooBig.join(', ')}.` : '',
-                  r.failed ? `Не загрузилось: ${r.failed} — проверь, что в Supabase выполнен SQL для хранилища книг.` : '',
+                  r.failed ? `Не загрузилось: ${r.failed}. ${lastCloudError}` : '',
                 ].filter(Boolean).join(' '));
                 setBusy(false);
               });

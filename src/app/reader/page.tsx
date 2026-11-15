@@ -884,12 +884,17 @@ function FromCloud({ book }: { book: Book }) {
   const started = useRef(false);
   const run = useCallback(() => {
     setState('loading');
-    void downloadBook(book).then((err) => {
-      if (err) {
-        setMessage(err);
+    void downloadBook(book)
+      .then((err) => {
+        if (err) {
+          setMessage(err);
+          setState('error');
+        }
+      })
+      .catch((e: unknown) => {
+        setMessage(`Не получилось скачать: ${e instanceof Error ? e.message : 'нет связи с облаком'}`);
         setState('error');
-      }
-    });
+      });
   }, [book]);
   useEffect(() => {
     if (started.current) return;
