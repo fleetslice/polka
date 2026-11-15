@@ -43,3 +43,8 @@ next-env.d.ts
 
 # Netlify
 .netlify/
+
+# Cloudflare / OpenNext
+.open-next/
+.wrangler/
+.dev.vars
