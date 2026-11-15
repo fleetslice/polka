@@ -1,0 +1,63 @@
+/* ПОЛКА. — дизайн-токены. Единственный источник значений; tailwind.config.ts ссылается на эти переменные. */
+:root {
+  /* Цвет */
+  --bg: #121211;
+  --bg-2: #171614;
+  --surface: #1f1e1b;
+  --line: #2a2925; /* разделители 1px */
+  --line-2: #3a3934; /* декоративные обводки */
+  --line-3: #77736a; /* границы интерактивных элементов: контраст ≥3:1 к фону (WCAG 1.4.11) */
+  --text: #ede8df;
+  --text-2: #c9c4ba;
+  --muted: #9c978e;
+  --accent: #c8f031; /* меняется в настройках */
+  --accent-2: #ff6a3d;
+  --ink: #121211; /* текст на акценте и на светлых карточках */
+  --shelf: #2e2c27; /* доска полки */
+  --danger: #ff8a66;
+
+  /* Темы страницы читалки */
+  --paper-bg: #f4f1ea;
+  --paper-fg: #1a1916;
+  --sepia-bg: #e9dcc2;
+  --sepia-fg: #3a2a17;
+  --night-bg: #1c1b19;
+  --night-fg: #e6e1d6;
+
+  /* Шрифты (подключаются в app/layout.tsx) */
+  
+  
+  
+  /* --font-display (Unbounded), --font-ui (Golos Text), --font-mono (JetBrains Mono), --font-book (Literata) задаёт next/font */
+
+  /* Кегли */
+  --fs-hero: clamp(44px, 10.4vw, 132px);
+  --fs-h1: clamp(36px, 6vw, 72px);
+  --fs-h2: clamp(22px, 2.6vw, 30px);
+  --fs-num: clamp(44px, 5vw, 64px);
+  --fs-body: 15px;
+  --fs-small: 13px;
+  --fs-mono: 11px;
+
+  /* Отступы: шаг 4px */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+  --gutter: clamp(16px, 3.4vw, 48px);
+
+  /* Форма */
+  --radius-pill: 22px;
+  --radius-card: 4px;
+  --touch: 44px;
+  --focus: 2px solid var(--accent);
+
+  /* Движение */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 120ms;
+  --t-med: 220ms;
+}
