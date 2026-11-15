@@ -68,7 +68,7 @@ export function SourceList({ sources, query }: { sources: Source[]; query: strin
     <ol className="mt-4 border-t border-line">
       {sources.map((s) => (
         <li key={s.n} className="border-b border-line">
-          <Link href={sourceHref(s)} className="flex gap-3 py-3 no-underline hover:bg-bg-2">
+          <Link href={sourceHref(s, query)} className="flex gap-3 py-3 no-underline hover:bg-bg-2">
             <span className="mono" style={{ color: 'var(--accent)', minWidth: 28 }}>[{s.n}]</span>
             <span>
               <span className="mono block">

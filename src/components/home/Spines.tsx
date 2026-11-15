@@ -37,13 +37,13 @@ export function Spines({ books, onAdd }: { books: Book[]; onAdd: () => void }) {
                 href={`/reader?id=${b.id}`}
                 className="spine relative flex flex-col items-center no-underline"
                 style={{ width: w, height: h, background: b.color, color: ink }}
-                aria-label={`${b.title}${b.author ? `, ${b.author}` : ''}. ${b.format.toUpperCase()}, прочитано ${Math.round(b.progress * 100)}%`}
               >
-                <span aria-hidden className="mt-3 font-mono text-[9px] font-semibold tracking-[0.1em]">{b.format.toUpperCase()}</span>
-                <span aria-hidden className="spine-title my-2 flex-1 overflow-hidden font-display font-semibold" style={{ fontSize: w < 48 ? 12 : 14 }}>
+                <span className="mt-3 font-mono text-[9px] font-semibold tracking-[0.1em]">{b.format.toUpperCase()}</span>
+                <span className="spine-title my-2 flex-1 overflow-hidden font-display font-semibold" style={{ fontSize: w < 48 ? 12 : 14 }}>
                   {b.title}
                 </span>
-                <span aria-hidden className="spine-title mb-3 max-h-[84px] overflow-hidden text-[10px] opacity-80">{b.author.split(' ').pop()}</span>
+                <span className="spine-title mb-3 max-h-[84px] overflow-hidden text-[10px] opacity-80">{b.author.split(' ').pop()}</span>
+                <span className="sr-only">, прочитано {Math.round(b.progress * 100)}%</span>
                 <span aria-hidden className="absolute inset-x-0 bottom-0 h-[4px]" style={{ background: 'rgba(0,0,0,.28)' }}>
                   <i className="block h-full" style={{ width: `${Math.round(b.progress * 100)}%`, background: 'var(--accent)' }} />
                 </span>

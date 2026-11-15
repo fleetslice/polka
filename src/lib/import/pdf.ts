@@ -153,7 +153,8 @@ export async function parsePdf(
       flat.push({ text: p, page: i + 1 }, { text: '', page: i + 1 });
     }));
     const headings = detectHeadings(flat.map((f) => f.text));
-    if (headings.length >= 2) {
+    // Заголовкам верим, только если главы получаются похожими на главы (в среднем от 1500 символов).
+    if (headings.length >= 2 && chars / headings.length >= 1500) {
       const bounds = [...(headings[0]!.line > 0 ? [{ line: 0, title: 'Начало', level: 0, synthetic: true }] : []), ...headings.map((h) => ({ ...h, synthetic: false }))];
       chapters = bounds.map((h, i) => {
         const endLine = bounds[i + 1]?.line ?? flat.length;

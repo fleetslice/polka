@@ -98,7 +98,7 @@ export function CommandK() {
             <ul>
               {hits.map((h) => (
                 <li key={`${h.kind}-${h.n}`} className="border-b border-line">
-                  <button type="button" className="block w-full px-5 py-3 text-left hover:bg-surface" onClick={() => go(sourceHref(h))}>
+                  <button type="button" className="block w-full px-5 py-3 text-left hover:bg-surface" onClick={() => go(sourceHref(h, q))}>
                     <span className="mono block">
                       {h.kind === 'note' ? 'заметка · ' : ''}{h.bookTitle}{h.chapterTitle ? ` · ${h.chapterTitle}` : ''}{h.page ? ` · стр. ${h.page}` : ''}
                     </span>

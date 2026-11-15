@@ -84,5 +84,6 @@ export async function retrieve(query: string, opts: RetrieveOptions = {}): Promi
   return hits.map((r, i) => ({ ...r, n: i + 1 }));
 }
 
-export const sourceHref = (s: Pick<Source, 'bookId' | 'chapter' | 'offset'>): string =>
-  s.bookId ? `/reader?id=${s.bookId}&c=${s.chapter}&o=${s.offset}` : '/notes';
+/** Ссылка на место в книге. q — искомая фраза: читалка подсветит её первое вхождение после смещения. */
+export const sourceHref = (s: Pick<Source, 'bookId' | 'chapter' | 'offset'>, q?: string): string =>
+  s.bookId ? `/reader?id=${s.bookId}&c=${s.chapter}&o=${s.offset}${q ? `&q=${encodeURIComponent(q.slice(0, 120))}` : ''}` : '/notes';

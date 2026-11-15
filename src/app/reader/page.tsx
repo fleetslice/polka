@@ -83,8 +83,23 @@ function Reader({ id }: { id: string }) {
       const start: Locator = c !== null
         ? { chapter: Math.min(chapters.length - 1, Math.max(0, Number(c) || 0)), offset: Math.max(0, Number(params.get('o')) || 0) }
         : saved?.locator && chapters[saved.locator.chapter] ? saved.locator : { chapter: 0, offset: 0 };
+      // Пришли из поиска: подсвечиваем первое вхождение слова запроса после указанного смещения.
+      const q = params.get('q');
+      if (c !== null && q) {
+        const text = (await db.contents.get([id, start.chapter]))?.text.toLowerCase() ?? '';
+        const words = (q.toLowerCase().match(/[a-zа-яё0-9]{3,}/gi) ?? []).sort((x, y) => y.length - x.length);
+        for (const w of words) {
+          const stemmed = w.length > 5 ? w.slice(0, w.length - 2) : w;
+          let at = text.indexOf(stemmed, start.offset);
+          if (at < 0) at = text.indexOf(stemmed);
+          if (at >= 0) {
+            start.offset = Math.max(0, at - 200);
+            setFlash({ chapter: start.chapter, start: at, end: at + w.length });
+            break;
+          }
+        }
+      }
       pending.current = start.offset;
-      if (c !== null && start.offset > 0) setFlash({ chapter: start.chapter, start: start.offset, end: start.offset + 160 });
       setLoc(start);
       setReadTo(start.offset);
     })();
@@ -172,6 +187,8 @@ function Reader({ id }: { id: string }) {
       const target = pending.current;
       pending.current = null;
       goTo(target);
+      // Веб-шрифт может догрузиться позже и сдвинуть текст — возвращаемся на то же место.
+      if (document.fonts?.status !== 'loaded') void document.fonts?.ready.then(() => goTo(target));
       restored.current = true;
       window.requestAnimationFrame(measure);
     }
@@ -517,9 +534,9 @@ function Reader({ id }: { id: string }) {
                 </button>
               ))}
             </div>
-            <button type="button" className="icon-btn" aria-label="Уменьшить шрифт" onClick={() => st.set('fontSize', Math.max(13, st.fontSize - 1))}>А−</button>
+            <button type="button" className="icon-btn" onClick={() => st.set('fontSize', Math.max(13, st.fontSize - 1))}><span aria-hidden>А−</span><span className="sr-only">Уменьшить шрифт</span></button>
             <span className="mono w-6 text-center" aria-label={`Размер шрифта ${st.fontSize}`}>{st.fontSize}</span>
-            <button type="button" className="icon-btn" aria-label="Увеличить шрифт" onClick={() => st.set('fontSize', Math.min(34, st.fontSize + 1))}>А+</button>
+            <button type="button" className="icon-btn" onClick={() => st.set('fontSize', Math.min(34, st.fontSize + 1))}><span aria-hidden>А+</span><span className="sr-only">Увеличить шрифт</span></button>
             <button type="button" className="icon-btn" aria-pressed={tts} aria-label={tts ? 'Остановить озвучку' : 'Озвучить с этого места'} onClick={toggleTts}>
               {tts ? <VolumeX size={18} aria-hidden /> : <Volume2 size={18} aria-hidden />}
             </button>

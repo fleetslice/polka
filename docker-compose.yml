@@ -1,0 +1,14 @@
+services:
+  polka:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - "3000:3000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      POLKA_AI_MODEL: ${POLKA_AI_MODEL:-claude-opus-5-5}
+      POLKA_AI_RATE_PER_MIN: ${POLKA_AI_RATE_PER_MIN:-20}
+    restart: unless-stopped

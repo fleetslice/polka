@@ -103,3 +103,9 @@
   .book-text mark.hl-find { background: #f2c14e; color: #121211; }
   .book-text ::selection { background: #b9d8ff; color: #121211; }
 }
+
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  header, nav, .skip { display: none !important; }
+  .page { padding: 0 !important; }
+}
