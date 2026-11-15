@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Golos_Text, JetBrains_Mono, Literata, Unbounded } from 'next/font/google';
 import './globals.css';
 import { Chrome } from '@/components/Chrome';
+import { BASE } from '@/lib/base';
 
 const display = Unbounded({ subsets: ['latin', 'cyrillic'], weight: ['600', '800'], variable: '--font-display', display: 'swap' });
 const ui = Golos_Text({ subsets: ['latin', 'cyrillic'], weight: ['400', '500', '600'], variable: '--font-ui', display: 'swap' });
@@ -11,9 +12,9 @@ const book = Literata({ subsets: ['latin', 'cyrillic'], weight: ['400', '600'], 
 export const metadata: Metadata = {
   title: { default: 'ПОЛКА. — личная библиотека', template: '%s — ПОЛКА.' },
   description: 'Личная библиотека электронных книг: любые форматы, свои полки, прогресс по главам, заметки и ИИ-толкователь.',
-  manifest: '/manifest.webmanifest',
+  manifest: `${BASE}/manifest.webmanifest`,
   appleWebApp: { capable: true, title: 'ПОЛКА.', statusBarStyle: 'black-translucent' },
-  icons: { icon: '/icon.svg', apple: '/icon-192.png' },
+  icons: { icon: `${BASE}/icon.svg`, apple: `${BASE}/icon-192.png` },
 };
 
 export const viewport: Viewport = { themeColor: '#121211', width: 'device-width', initialScale: 1, viewportFit: 'cover' };

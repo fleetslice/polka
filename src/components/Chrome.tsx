@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { BASE } from '@/lib/base';
 import { touchDevice } from '@/lib/device';
 import { useSettings } from '@/lib/settings';
 import { startSync } from '@/lib/sync';
@@ -24,7 +25,7 @@ export function Chrome({ children }: { children: React.ReactNode }) {
     const beat = window.setInterval(() => void touchDevice(), 60_000);
     const stop = startSync();
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      void navigator.serviceWorker.register('/sw.js');
+      void navigator.serviceWorker.register(`${BASE}/sw.js`);
     }
     return () => {
       window.clearInterval(beat);

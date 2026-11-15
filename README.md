@@ -70,6 +70,11 @@ npm run dev
 docker compose up --build
 ```
 
+### GitHub Pages
+
+Workflow `.github/workflows/pages.yml` при каждом пуше собирает статическую версию и выкладывает её на GitHub Pages.
+Это хостинг без сервера: маршруты ИИ в сборку не входят, сайт показывает «ИИ не подключён». Всё остальное работает в браузере.
+
 ### Netlify
 
 В репозитории есть `netlify.toml`. В Netlify: Add new site → Import an existing project → GitHub → этот репозиторий и ветка.

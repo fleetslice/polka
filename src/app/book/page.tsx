@@ -9,6 +9,7 @@ import { chapterRows, type ChapterRow } from '@/components/reader/model';
 import { SegmentBar } from '@/components/reader/SegmentBar';
 import { addFlashcard, deleteBook, moveBook, reviewFlashcard } from '@/lib/actions';
 import { AiUnavailable, generate, type BookInsight } from '@/lib/ai';
+import { BASE } from '@/lib/base';
 import { db } from '@/lib/db';
 import { download } from '@/lib/export';
 import { lastBook, useBook, useBooks, useShelves } from '@/lib/hooks';
@@ -60,7 +61,7 @@ function Insight({ book, chapters }: { book: Book; chapters: Chapter[] }) {
   // Толкование готовится один раз — при первом открытии страницы книги, если ИИ подключён.
   useEffect(() => {
     if (cached !== undefined && !cached && book.kind === 'text' && aiReady === null) {
-      void fetch('/api/ai/status').then((r) => r.json()).then((s: { ai: boolean }) => {
+      void fetch(`${BASE}/api/ai/status`).then((r) => (r.ok ? r.json() : { ai: false })).then((s: { ai: boolean }) => {
         setAiReady(s.ai);
         if (s.ai) void run();
       }).catch(() => setAiReady(false));

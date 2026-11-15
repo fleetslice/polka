@@ -1,4 +1,5 @@
 import type { ParsedBook, ParsedChapter } from '../types';
+import { BASE } from '../base';
 import { detectHeadings, escapeHtml, joinWrapped } from './chapters';
 
 type PdfJs = typeof import('pdfjs-dist');
@@ -6,7 +7,7 @@ let lib: Promise<PdfJs> | null = null;
 
 export function loadPdfJs(): Promise<PdfJs> {
   lib ??= import('pdfjs-dist').then((m) => {
-    m.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    m.GlobalWorkerOptions.workerSrc = `${BASE}/pdf.worker.min.mjs`;
     return m;
   });
   return lib;
