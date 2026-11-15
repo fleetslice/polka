@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
 import { AnswerBlock, useAsk } from '@/components/Ask';
-import { ACCEPT } from '@/components/Header';
 import { ShelfTabs } from '@/components/home/ShelfTabs';
 import { Covers, Spines } from '@/components/home/Spines';
 import { useBooks, useDevices, useShelves } from '@/lib/hooks';
@@ -149,7 +148,7 @@ export default function ShelfPage() {
 
   return (
     <div className="page">
-      <input ref={picker} type="file" multiple accept={ACCEPT} className="hidden" aria-hidden tabIndex={-1}
+      <input ref={picker} type="file" multiple className="hidden" aria-hidden tabIndex={-1}
         onChange={(e) => {
           const files = [...(e.target.files ?? [])];
           e.target.value = '';

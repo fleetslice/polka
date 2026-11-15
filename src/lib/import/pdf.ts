@@ -2,11 +2,12 @@ import type { ParsedBook, ParsedChapter } from '../types';
 import { BASE } from '../base';
 import { detectHeadings, escapeHtml, joinWrapped } from './chapters';
 
+// Legacy-сборка pdf.js: обычная требует новейших браузеров и на части телефонов зависает без ошибки.
 type PdfJs = typeof import('pdfjs-dist');
 let lib: Promise<PdfJs> | null = null;
 
 export function loadPdfJs(): Promise<PdfJs> {
-  lib ??= import('pdfjs-dist').then((m) => {
+  lib ??= (import('pdfjs-dist/legacy/build/pdf.mjs') as Promise<PdfJs>).then((m) => {
     m.GlobalWorkerOptions.workerSrc = `${BASE}/pdf.worker.min.mjs`;
     return m;
   });

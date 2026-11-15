@@ -8,7 +8,6 @@ import { importFiles } from '@/lib/import';
 import { plural } from '@/lib/progress';
 import { syncConfigured } from '@/lib/sync';
 
-export const ACCEPT = '.epub,.fb2,.zip,.fbz,.pdf,.mobi,.azw,.azw3,.djvu,.djv,.docx,.doc,.odt,.rtf,.txt,.md,.cbz,.cbr,.html,.htm,.mp3,.m4b,.m4a';
 
 export function useNav() {
   const books = useBooks();
@@ -81,7 +80,7 @@ export function Header() {
             ref={input}
             type="file"
             multiple
-            accept={ACCEPT}
+           
             className="hidden"
             aria-hidden
             tabIndex={-1}

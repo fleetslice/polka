@@ -79,22 +79,61 @@ export async function uploadAll(onProgress?: (done: number, total: number) => vo
 
 const EXT: Record<string, string> = { fb2: 'fb2', m4b: 'm4b' };
 
-/** Скачивает файл книги из облака и прикрепляет к уже существующей записи (прогресс и заметки сохраняются). */
-export async function downloadBook(book: Book): Promise<string | null> {
+export type DownloadStep = { stage: 'download'; done: number; total: number } | { stage: 'open'; message: string };
+
+/**
+ * Скачивает файл книги из облака и прикрепляет к уже существующей записи (прогресс и заметки сохраняются).
+ * onStep показывает, сколько скачано и что делает разбор файла. Если 30 секунд не приходит ни байта — ошибка, а не вечная загрузка.
+ */
+export async function downloadBook(book: Book, onStep?: (s: DownloadStep) => void): Promise<string | null> {
   const s = await session();
   if (!s) return 'Войди в аккаунт на экране «Облако», чтобы скачать книгу.';
-  const { data, error } = await s.sb.storage.from(BUCKET).download(pathFor(s.userId, book));
-  if (error || !data) {
-    if (book.size > CLOUD_FILE_LIMIT) return 'Файл больше 50 МБ — в бесплатное облако Supabase он не помещается. Закинь его на это устройство вручную.';
-    // У ошибки скачивания Supabase часто пустой текст, а код — в originalError.status.
-    const e = error as (Error & { status?: number; statusCode?: string; originalError?: { status?: number } }) | null;
-    const status = e?.originalError?.status ?? e?.status ?? Number(e?.statusCode);
-    const text = [e?.message, status ? String(status) : ''].filter(Boolean).join(' ');
-    return explainStorageError(status === 400 || status === 404 ? 'not found' : text || 'нет ответа');
+  if (book.size > CLOUD_FILE_LIMIT) return 'Файл больше 50 МБ — в бесплатное облако Supabase он не помещается. Закинь его на это устройство вручную.';
+
+  const signed = await s.sb.storage.from(BUCKET).createSignedUrl(pathFor(s.userId, book), 600);
+  if (signed.error || !signed.data?.signedUrl) return explainStorageError(signed.error?.message || 'not found');
+
+  const ctrl = new AbortController();
+  let idle = window.setTimeout(() => ctrl.abort(), 30_000);
+  const parts: Uint8Array[] = [];
+  let done = 0;
+  try {
+    const res = await fetch(signed.data.signedUrl, { signal: ctrl.signal });
+    if (!res.ok || !res.body) return explainStorageError(res.status === 400 || res.status === 404 ? 'not found' : `HTTP ${res.status}`);
+    const total = Number(res.headers.get('content-length')) || book.size;
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done: end, value } = await reader.read();
+      if (end) break;
+      parts.push(value);
+      done += value.length;
+      window.clearTimeout(idle);
+      idle = window.setTimeout(() => ctrl.abort(), 30_000);
+      onStep?.({ stage: 'download', done, total });
+    }
+  } catch {
+    return ctrl.signal.aborted
+      ? 'Загрузка из облака встала: 30 секунд не приходило данных. Проверь интернет и нажми «Попробовать ещё раз».'
+      : 'Не получилось скачать: нет связи с облаком.';
+  } finally {
+    window.clearTimeout(idle);
   }
+
   const name = `${book.title}.${EXT[book.format] ?? book.format}`;
-  const res = await importFile(new File([data], name), { addedFrom: book.addedFrom });
-  if (res.error) return res.error;
+  onStep?.({ stage: 'open', message: 'Открываю книгу' });
+  // Этапы разбора файла пишутся в таблицу jobs — раз в полсекунды показываем текущий этап.
+  const started = Date.now();
+  const poll = window.setInterval(() => {
+    void db.jobs.where('createdAt').aboveOrEqual(started).last().then((j) => {
+      if (j?.message) onStep?.({ stage: 'open', message: j.message });
+    });
+  }, 500);
+  try {
+    const res = await importFile(new File(parts as BlobPart[], name), { addedFrom: book.addedFrom });
+    if (res.error) return res.error;
+  } finally {
+    window.clearInterval(poll);
+  }
   await db.meta.put({ key: `cloud:${book.hash}`, value: Date.now() });
   return null;
 }

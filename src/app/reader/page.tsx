@@ -881,10 +881,17 @@ function AudioView({ bookId, start, onTime }: { bookId: string; start: number; o
 function FromCloud({ book }: { book: Book }) {
   const [state, setState] = useState<'loading' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [step, setStep] = useState('Соединяюсь с облаком…');
   const started = useRef(false);
   const run = useCallback(() => {
     setState('loading');
-    void downloadBook(book)
+    setStep('Соединяюсь с облаком…');
+    void downloadBook(book, (s) => {
+      if (s.stage === 'download') {
+        const mb = (n: number): string => (n / 1024 / 1024).toFixed(1).replace('.', ',');
+        setStep(`Скачиваю из облака: ${mb(s.done)} из ${mb(s.total)} МБ · ${Math.min(100, Math.round((s.done / Math.max(1, s.total)) * 100))}%`);
+      } else setStep(`${s.message}…`);
+    })
       .then((err) => {
         if (err) {
           setMessage(err);
@@ -905,7 +912,7 @@ function FromCloud({ book }: { book: Book }) {
     <div className="page pt-16" aria-live="polite">
       <h1 className="display text-[clamp(28px,5vw,48px)]">{book.title}<span className="dot">.</span></h1>
       {state === 'loading' ? (
-        <p className="mono mt-4">Скачиваю книгу из облака…</p>
+        <p className="mono mt-4">{step}</p>
       ) : (
         <>
           <p className="mt-4 max-w-[560px] text-[17px] text-text-2">{message}</p>

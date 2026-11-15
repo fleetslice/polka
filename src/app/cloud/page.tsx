@@ -3,7 +3,6 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowDown } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ACCEPT } from '@/components/Header';
 import { db, SYNCED_TABLES } from '@/lib/db';
 import { deviceId } from '@/lib/device';
 import { useDevices, useOnline, useSyncEmail } from '@/lib/hooks';
@@ -92,7 +91,7 @@ export default function CloudPage() {
             <button type="button" className="pill pill-accent" onClick={() => files.current?.click()}>Выбрать файлы</button>
             <button type="button" className="pill" onClick={() => folder.current?.click()}>Выбрать папку</button>
           </div>
-          <input ref={files} type="file" multiple accept={ACCEPT} className="hidden" tabIndex={-1} aria-hidden
+          <input ref={files} type="file" multiple className="hidden" tabIndex={-1} aria-hidden
             onChange={(e) => {
               take([...(e.target.files ?? [])]);
               e.target.value = '';
