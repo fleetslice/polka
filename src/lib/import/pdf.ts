@@ -12,10 +12,10 @@ export function loadPdfJs(): Promise<PdfJs> {
   return lib;
 }
 
-interface Line { y: number; x: number; text: string; h: number }
+interface Line { y: number; x: number; text: string; h: number; end: number }
 
 /** Собирает элементы текстового слоя страницы в строки (по координате Y). */
-export function itemsToLines(items: { str: string; transform: number[]; height: number }[]): Line[] {
+export function itemsToLines(items: { str: string; transform: number[]; height: number; width?: number }[]): Line[] {
   const lines: Line[] = [];
   for (const it of items) {
     if (!it.str) continue;
@@ -23,9 +23,14 @@ export function itemsToLines(items: { str: string; transform: number[]; height: 
     const x = it.transform[4] ?? 0;
     const h = it.height || Math.abs(it.transform[3] ?? 10) || 10;
     const last = lines[lines.length - 1];
+    const end = x + (it.width ?? 0);
     if (last && Math.abs(last.y - y) < h * 0.5) {
-      last.text += it.str;
-    } else lines.push({ y, x, text: it.str, h });
+      // Слова часто идут отдельными элементами без пробелов: заметный зазор между ними — это пробел.
+      const gap = x - last.end;
+      const needSpace = gap > h * 0.15 && !/\s$/.test(last.text) && !/^\s/.test(it.str);
+      last.text += (needSpace ? ' ' : '') + it.str;
+      last.end = Math.max(last.end, end);
+    } else lines.push({ y, x, text: it.str, h, end });
   }
   return lines.map((l) => ({ ...l, text: l.text.replace(/\s+/g, ' ').trim() })).filter((l) => l.text);
 }
@@ -76,7 +81,7 @@ export async function parsePdf(
   for (let n = 1; n <= total; n += 1) {
     const page = await pdf.getPage(n);
     const content = await page.getTextContent();
-    const items = content.items.filter((i): i is typeof i & { str: string } => 'str' in i) as unknown as { str: string; transform: number[]; height: number }[];
+    const items = content.items.filter((i): i is typeof i & { str: string } => 'str' in i) as unknown as { str: string; transform: number[]; height: number; width: number }[];
     const paragraphs = linesToParagraphs(itemsToLines(items));
     chars += paragraphs.reduce((s, p) => s + p.length, 0);
     pages.push(paragraphs);

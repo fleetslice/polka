@@ -7,13 +7,22 @@ export const aiReady = (): boolean => !!process.env.ANTHROPIC_API_KEY;
 let client: Anthropic | null = null;
 export const anthropic = (): Anthropic => (client ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
 
-/** Простой лимит запросов на IP (в памяти процесса). За балансировщиком на несколько инстансов нужен общий стор. */
+/**
+ * Лимит запросов (в памяти процесса): на IP и общий на весь сервер.
+ * X-Forwarded-For клиент может подделать, поэтому общий потолок — единственная граница, которую нельзя обойти сменой адреса.
+ * За балансировщиком на несколько инстансов нужен общий стор.
+ */
 const hits = new Map<string, number[]>();
 const LIMIT = Number(process.env.POLKA_AI_RATE_PER_MIN || 20);
+const GLOBAL_LIMIT = Number(process.env.POLKA_AI_RATE_GLOBAL_PER_MIN || 60);
+let globalHits: number[] = [];
 
 export function rateLimited(req: Request): boolean {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
   const now = Date.now();
+  globalHits = globalHits.filter((t) => now - t < 60_000);
+  if (globalHits.length >= GLOBAL_LIMIT) return true;
+  globalHits.push(now);
   const list = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
   if (list.length >= LIMIT) {
     hits.set(ip, list);
@@ -25,10 +34,13 @@ export function rateLimited(req: Request): boolean {
   return false;
 }
 
-/** Запросы принимаются только со своего сайта: API не должен быть открытым прокси к ИИ. */
+/**
+ * Запросы принимаются только со своего сайта. Браузер всегда ставит Origin на POST, поэтому запрос без него отклоняется.
+ * Это не авторизация: заголовок можно подделать вне браузера. Публичный сайт с ключом ИИ нужно закрывать входом (см. docs/DEPLOY-CHECKLIST.md).
+ */
 export function sameOrigin(req: Request): boolean {
   const origin = req.headers.get('origin');
-  if (!origin) return true;
+  if (!origin) return false;
   try {
     return new URL(origin).host === (req.headers.get('x-forwarded-host') ?? req.headers.get('host'));
   } catch {

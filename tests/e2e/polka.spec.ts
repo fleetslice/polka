@@ -160,6 +160,15 @@ test('поиск Ctrl+K находит фразу в тексте книги', a
   await page.getByRole('dialog').getByRole('button', { name: /Белый пароход · Глава 1/ }).first().click();
   await expect(page).toHaveURL(/\/reader\?id=/);
   await expect(page.locator('mark.hl-find')).toBeVisible();
+
+  // Ссылка на место в уже открытой книге тоже срабатывает: уходим в главу 3 и снова ищем фразу из главы 1
+  await page.getByRole('button', { name: /^Глава 3: / }).last().click();
+  await expect(page.locator('header p.mono')).toContainText(/Глава 3/i);
+  await page.keyboard.press('Control+k');
+  await page.getByLabel('Поиск', { exact: true }).fill('бинокль');
+  await page.getByRole('dialog').getByRole('button', { name: /Белый пароход · Глава 1/ }).first().click();
+  await expect(page.locator('header p.mono')).toContainText(/Глава 1/i);
+  await expect(page.locator('mark.hl-find')).toBeVisible();
 });
 
 test('доступность: на экранах нет нарушений WCAG 2.1 AA (axe)', async ({ page }) => {

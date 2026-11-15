@@ -6,6 +6,7 @@ import { parseFb2 } from '@/lib/import/fb2';
 import { parseEpub, resolvePath } from '@/lib/import/epub';
 import { chaptersFromHtml } from '@/lib/import/html';
 import { rtfToText } from '@/lib/import/rtf';
+import { itemsToLines } from '@/lib/import/pdf';
 import { formatFromName, sniffFormat, titleFromFileName } from '@/lib/import/detect';
 import { sanitizeBookHtml } from '@/lib/import/sanitize';
 import { buildRecords } from '@/lib/import';
@@ -137,6 +138,18 @@ describe('HTML и RTF', () => {
     const out = sanitizeBookHtml('<p onclick="x">ок<img src="https://a/b.png"><img src="data:image/png;base64,AA=="><a href="javascript:alert(1)">l</a><iframe src="x"></iframe></p>');
     expect(out).not.toMatch(/onclick|https:\/\/a|javascript|iframe/);
     expect(out).toContain('data:image/png');
+  });
+});
+
+describe('исправления по ревью', () => {
+  it('классы из книги не доходят до интерфейса, свои — остаются', () => {
+    const out = sanitizeBookHtml('<div class="fixed inset-0 z-50">x</div><blockquote class="epigraph pill">y</blockquote>');
+    expect(out).toBe('<div>x</div><blockquote class="epigraph">y</blockquote>');
+  });
+  it('PDF: слова отдельными элементами разделяются пробелом, части одного слова — нет', () => {
+    const item = (str: string, x: number, width: number) => ({ str, transform: [1, 0, 0, 10, x, 700], height: 10, width });
+    const lines = itemsToLines([item('Мастер', 50, 40), item('и', 94, 6), item('Марга', 104, 30), item('рита', 134, 24)]);
+    expect(lines.map((l) => l.text)).toEqual(['Мастер и Маргарита']);
   });
 });
 

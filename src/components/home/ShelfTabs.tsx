@@ -39,8 +39,10 @@ export function ShelfTabs({ shelves, books, active, onSelect }: Props) {
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
               if (!drag || drag === s.id) return;
-              const ids = shelves.map((x) => x.id).filter((x) => x !== drag);
-              ids.splice(ids.indexOf(s.id), 0, drag);
+              const all = shelves.map((x) => x.id);
+              const forward = all.indexOf(drag) < all.indexOf(s.id); // тянем вправо — встаём после цели
+              const ids = all.filter((x) => x !== drag);
+              ids.splice(ids.indexOf(s.id) + (forward ? 1 : 0), 0, drag);
               void reorderShelves(ids);
               setDrag(null);
             }}

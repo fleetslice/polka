@@ -66,6 +66,7 @@ function Reader({ id }: { id: string }) {
   const findDlg = useRef<HTMLDialogElement>(null);
   const noteDlg = useRef<HTMLDialogElement>(null);
   const session = useRef({ start: 0, last: 0, chars: 0, prev: -1, chapter: -1 });
+  const ttsOn = useRef(false);
 
   const paged = st.flow === 'paged' && book?.kind === 'text';
   const chapter = chapters && loc ? chapters[loc.chapter] : undefined;
@@ -75,35 +76,41 @@ function Reader({ id }: { id: string }) {
   };
 
   /* ── Начальная позиция: из ссылки (?c=&o=) либо самая свежая среди устройств ── */
+  const linkKey = `${params.get('c') ?? ''}|${params.get('o') ?? ''}|${params.get('q') ?? ''}|${params.get('t') ?? ''}`;
+  const appliedLink = useRef<string | null>(null);
+
+  /** Место из ссылки (?c=&o=&q=). С q подсвечивается первое вхождение слова запроса после смещения. */
+  const linkTarget = useCallback(async (count: number): Promise<{ target: Locator; flash: { chapter: number; start: number; end: number } | null } | null> => {
+    const c = params.get('c');
+    if (c === null) return null;
+    const target: Locator = { chapter: Math.min(count - 1, Math.max(0, Number(c) || 0)), offset: Math.max(0, Number(params.get('o')) || 0) };
+    const q = params.get('q');
+    if (q) {
+      const text = (await db.contents.get([id, target.chapter]))?.text.toLowerCase() ?? '';
+      const words = (q.toLowerCase().match(/[a-zа-яё0-9]{3,}/gi) ?? []).sort((x, y) => y.length - x.length);
+      for (const w of words) {
+        const stemmed = w.length > 5 ? w.slice(0, w.length - 2) : w;
+        let at = text.indexOf(stemmed, target.offset);
+        if (at < 0) at = text.indexOf(stemmed);
+        if (at >= 0) return { target: { chapter: target.chapter, offset: Math.max(0, at - 200) }, flash: { chapter: target.chapter, start: at, end: at + w.length } };
+      }
+    }
+    return { target, flash: null };
+  }, [params, id]);
+
   useEffect(() => {
     if (!chapters?.length || loc) return;
+    appliedLink.current = linkKey;
     void (async () => {
-      const c = params.get('c');
-      const saved = c === null ? await latestPosition(id) : null;
-      const start: Locator = c !== null
-        ? { chapter: Math.min(chapters.length - 1, Math.max(0, Number(c) || 0)), offset: Math.max(0, Number(params.get('o')) || 0) }
-        : saved?.locator && chapters[saved.locator.chapter] ? saved.locator : { chapter: 0, offset: 0 };
-      // Пришли из поиска: подсвечиваем первое вхождение слова запроса после указанного смещения.
-      const q = params.get('q');
-      if (c !== null && q) {
-        const text = (await db.contents.get([id, start.chapter]))?.text.toLowerCase() ?? '';
-        const words = (q.toLowerCase().match(/[a-zа-яё0-9]{3,}/gi) ?? []).sort((x, y) => y.length - x.length);
-        for (const w of words) {
-          const stemmed = w.length > 5 ? w.slice(0, w.length - 2) : w;
-          let at = text.indexOf(stemmed, start.offset);
-          if (at < 0) at = text.indexOf(stemmed);
-          if (at >= 0) {
-            start.offset = Math.max(0, at - 200);
-            setFlash({ chapter: start.chapter, start: at, end: at + w.length });
-            break;
-          }
-        }
-      }
+      const link = await linkTarget(chapters.length);
+      const saved = link ? null : await latestPosition(id);
+      const start: Locator = link?.target ?? (saved?.locator && chapters[saved.locator.chapter] ? saved.locator : { chapter: 0, offset: 0 });
+      if (link?.flash) setFlash(link.flash);
       pending.current = start.offset;
       setLoc(start);
       setReadTo(start.offset);
     })();
-  }, [chapters, loc, id, params]);
+  }, [chapters, loc, id, linkKey, linkTarget]);
 
   /* ── Текст текущей главы ── */
   useEffect(() => {
@@ -202,6 +209,24 @@ function Reader({ id }: { id: string }) {
     }
   }, [st.fontSize, st.lineHeight, st.margin, st.fontFamily, st.columns, st.flow, wide, st.progressOpen, st.panelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* Размер окна меняет ширину колонок и страниц — выравниваемся на то же место текста. */
+  const locRef = useRef(loc);
+  locRef.current = loc;
+  useEffect(() => {
+    let t = 0;
+    const onResize = (): void => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        if (restored.current && locRef.current) goTo(locRef.current.offset);
+      }, 120);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.clearTimeout(t);
+    };
+  }, [goTo]);
+
   /* ── Сохранение позиции и учёт сессии чтения ── */
   useEffect(() => {
     if (!book || !chapters || !loc || !restored.current && book.kind === 'text') return;
@@ -243,6 +268,7 @@ function Reader({ id }: { id: string }) {
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', flush);
       flush();
+      ttsOn.current = false;
       window.speechSynthesis?.cancel();
     };
   }, [id]);
@@ -264,11 +290,23 @@ function Reader({ id }: { id: string }) {
       return;
     }
     pending.current = target.offset;
+    restored.current = false; // пока новая глава не отрисована, замеры по старому тексту не принимаются
     const len = chapters[target.chapter]!.lengthChars;
     const off = target.offset === 'end' ? Math.max(0, len - 1) : target.offset;
     setLoc({ chapter: target.chapter, offset: off });
     setReadTo(off);
   }, [chapters, loc, book?.kind, goTo, measure]);
+
+  /* Ссылка на место в уже открытой книге (источник в ответе ИИ, результат поиска). */
+  useEffect(() => {
+    if (!chapters?.length || !loc || appliedLink.current === linkKey) return;
+    appliedLink.current = linkKey;
+    void linkTarget(chapters.length).then((link) => {
+      if (!link) return;
+      setFlash(link.flash);
+      jump(link.target);
+    });
+  }, [linkKey, chapters, loc, linkTarget, jump]);
 
   /** Клик по главе: начало главы; у текущей — место, где остановились. */
   const openChapter = (index: number): void => {
@@ -419,6 +457,7 @@ function Reader({ id }: { id: string }) {
     const synth = window.speechSynthesis;
     if (!synth) return say('В этом браузере нет озвучки.');
     if (tts) {
+      ttsOn.current = false; // cancel() в части браузеров завершает фразу событием end — оно не должно запускать следующую
       synth.cancel();
       setTts(false);
       return;
@@ -428,8 +467,12 @@ function Reader({ id }: { id: string }) {
     let offset = loc.offset;
     let i = 0;
     const next = (): void => {
+      if (!ttsOn.current) return;
       const sentence = sentences[i];
-      if (!sentence) return setTts(false);
+      if (!sentence) {
+        ttsOn.current = false;
+        return setTts(false);
+      }
       const u = new SpeechSynthesisUtterance(sentence);
       u.lang = book?.lang ?? (/[а-яё]/i.test(sentence) ? 'ru-RU' : 'en-US');
       const at = offset;
@@ -439,9 +482,13 @@ function Reader({ id }: { id: string }) {
         i += 1;
         next();
       };
-      u.onerror = () => setTts(false);
+      u.onerror = () => {
+        ttsOn.current = false;
+        setTts(false);
+      };
       synth.speak(u);
     };
+    ttsOn.current = true;
     setTts(true);
     next();
   };

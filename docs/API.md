@@ -40,5 +40,5 @@
 
 ## Supabase
 - `rpc upsert_record(p_tbl, p_key, p_data, p_updated_at, p_device_id)` — запись с last-write-wins.
-- `select tbl, data, updated_at from records where updated_at > :since` — догрузка изменений.
+- `select tbl, data, synced_at from records where synced_at > :cursor` — догрузка изменений (курсор — серверное время приёма записи).
 - Realtime-канал по таблице `records`.

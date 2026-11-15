@@ -81,22 +81,24 @@ export async function pullAll(): Promise<number> {
   if (!sb || !navigator.onLine) return 0;
   const { data: auth } = await sb.auth.getUser();
   if (!auth.user) return 0;
-  const since = ((await db.meta.get('sync.pulledAt'))?.value as number | undefined) ?? 0;
+  // Курсор — серверное время приёма записи (synced_at), а не клиентское updated_at:
+  // запись, сделанная офлайн «в прошлом», всё равно окажется после курсора, когда доедет до сервера.
+  const since = ((await db.meta.get('sync.cursor'))?.value as string | undefined) ?? '1970-01-01T00:00:00Z';
   let applied = 0;
   let from = 0;
   let maxSeen = since;
   for (;;) {
-    const { data, error } = await sb.from('records').select('tbl,data,updated_at').gt('updated_at', since)
-      .order('updated_at').range(from, from + 499);
+    const { data, error } = await sb.from('records').select('tbl,data,synced_at').gt('synced_at', since)
+      .order('synced_at').range(from, from + 499);
     if (error || !data?.length) break;
-    for (const r of data as { tbl: string; data: Synced & Record<string, unknown>; updated_at: number }[]) {
+    for (const r of data as { tbl: string; data: Synced & Record<string, unknown>; synced_at: string }[]) {
       if (SYNCED_TABLES.includes(r.tbl as SyncedTable) && (await applyRemote(r.tbl as SyncedTable, r.data))) applied += 1;
-      maxSeen = Math.max(maxSeen, r.updated_at);
+      if (r.synced_at > maxSeen) maxSeen = r.synced_at;
     }
     if (data.length < 500) break;
     from += 500;
   }
-  await db.meta.put({ key: 'sync.pulledAt', value: maxSeen });
+  await db.meta.put({ key: 'sync.cursor', value: maxSeen });
   return applied;
 }
 

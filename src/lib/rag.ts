@@ -16,7 +16,9 @@ export interface Source {
 }
 
 type Ref = Omit<Source, 'n'>;
-let cache: { key: string; index: SearchIndex<Ref> } | null = null;
+// Два отдельных кеша: новая заметка не должна заставлять заново токенизировать все книги.
+let bookCache: { key: string; index: SearchIndex<Ref> } | null = null;
+let noteCache: { key: string; index: SearchIndex<Ref> } | null = null;
 
 export function pageFor(chapter: Chapter, offset: number): number {
   if (chapter.endPage > chapter.startPage && chapter.lengthChars) {
@@ -25,43 +27,52 @@ export function pageFor(chapter: Chapter, offset: number): number {
   return pageOfChar(chapter.start + offset);
 }
 
-/** Индекс по всем книгам и заметкам. Пересобирается, когда меняется состав библиотеки. */
-async function getIndex(): Promise<SearchIndex<Ref>> {
+/** Индексы по книгам и по заметкам. Каждый пересобирается, только когда меняется его часть библиотеки. */
+async function getIndexes(): Promise<SearchIndex<Ref>[]> {
   const [books, notes, contentCount] = await Promise.all([db.books.toArray(), db.notes.toArray(), db.contents.count()]);
+  const liveBooks = books.filter((b) => !b.deleted);
   const liveNotes = notes.filter((n) => !n.deleted);
-  const key = `${contentCount}:${liveNotes.length}:${liveNotes.reduce((m, n) => Math.max(m, n.updatedAt), 0)}`;
-  if (cache?.key === key) return cache.index;
-  const titles = new Map(books.filter((b) => !b.deleted).map((b) => [b.id, b.title]));
+  const titles = new Map(liveBooks.map((b) => [b.id, b.title]));
   const chapters = new Map((await db.chapters.toArray()).map((c) => [c.id, c]));
-  const items: { text: string; ref: Ref }[] = [];
-  await db.contents.each((c) => {
-    const bookTitle = titles.get(c.bookId);
-    const chapter = chapters.get(`${c.bookId}:${c.order}`);
-    if (!bookTitle || !chapter) return;
-    for (const piece of chunkText(c.text)) {
-      items.push({
-        text: piece.text,
-        ref: {
-          kind: 'book', bookId: c.bookId, bookTitle, chapter: c.order, chapterTitle: chapter.title,
-          offset: piece.start, page: pageFor(chapter, piece.start), text: piece.text,
-        },
-      });
-    }
-  });
-  for (const n of liveNotes) {
-    const chapter = n.chapterId ? chapters.get(n.chapterId) : undefined;
-    items.push({
-      text: n.bodyMd,
-      ref: {
-        kind: 'note', bookId: n.bookId, bookTitle: (n.bookId && titles.get(n.bookId)) || 'Заметка без книги',
-        chapter: n.locator?.chapter ?? chapter?.order ?? 0, chapterTitle: chapter?.title ?? '',
-        offset: n.locator?.offset ?? 0, page: n.page, text: n.bodyMd,
-      },
+
+  const bookKey = `${contentCount}:${liveBooks.map((b) => b.id).sort().join(',')}`;
+  if (bookCache?.key !== bookKey) {
+    const items: { text: string; ref: Ref }[] = [];
+    await db.contents.each((c) => {
+      const bookTitle = titles.get(c.bookId);
+      const chapter = chapters.get(`${c.bookId}:${c.order}`);
+      if (!bookTitle || !chapter) return;
+      for (const piece of chunkText(c.text)) {
+        items.push({
+          text: piece.text,
+          ref: {
+            kind: 'book', bookId: c.bookId, bookTitle, chapter: c.order, chapterTitle: chapter.title,
+            offset: piece.start, page: pageFor(chapter, piece.start), text: piece.text,
+          },
+        });
+      }
     });
+    bookCache = { key: bookKey, index: buildIndex(items) };
   }
-  const index = buildIndex(items);
-  cache = { key, index };
-  return index;
+
+  const noteKey = `${liveNotes.length}:${liveNotes.reduce((m, n) => Math.max(m, n.updatedAt), 0)}`;
+  if (noteCache?.key !== noteKey) {
+    noteCache = {
+      key: noteKey,
+      index: buildIndex(liveNotes.map((n) => {
+        const chapter = n.chapterId ? chapters.get(n.chapterId) : undefined;
+        return {
+          text: n.bodyMd,
+          ref: {
+            kind: 'note' as const, bookId: n.bookId, bookTitle: (n.bookId && titles.get(n.bookId)) || 'Заметка без книги',
+            chapter: n.locator?.chapter ?? chapter?.order ?? 0, chapterTitle: chapter?.title ?? '',
+            offset: n.locator?.offset ?? 0, page: n.page, text: n.bodyMd,
+          },
+        };
+      })),
+    };
+  }
+  return [bookCache.index, noteCache.index];
 }
 
 export interface RetrieveOptions {
@@ -72,8 +83,9 @@ export interface RetrieveOptions {
 }
 
 export async function retrieve(query: string, opts: RetrieveOptions = {}): Promise<Source[]> {
-  const index = await getIndex();
-  const hits = searchIndex(index, query, 60)
+  const hits = (await getIndexes())
+    .flatMap((index) => searchIndex(index, query, 60))
+    .sort((a, b) => b.score - a.score)
     .map((h) => h.ref)
     .filter((r) => !opts.bookId || r.bookId === opts.bookId)
     .filter((r) => {

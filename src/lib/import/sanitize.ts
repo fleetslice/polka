@@ -7,12 +7,18 @@ const ALLOWED_TAGS = [
 ];
 const ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'id', 'class', 'colspan', 'rowspan', 'data-page', 'data-note', 'lang'];
 
+const BOOK_CLASSES = new Set(['noteref', 'epigraph', 'poem', 'stanza', 'verse', 'text-author', 'annotation', 'pg']);
+
 let hooked = false;
 
 /** Очищает HTML книги: без скриптов, стилей и внешних ресурсов. Картинки — только встроенные data:. */
 export function sanitizeBookHtml(html: string): string {
   if (!hooked) {
     DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+      // Классы из книги не должны совпасть с классами интерфейса: оставляем только те, что ставят наши парсеры.
+      const cls = (node.getAttribute('class') ?? '').split(/\s+/).filter((c) => BOOK_CLASSES.has(c));
+      if (cls.length) node.setAttribute('class', cls.join(' '));
+      else node.removeAttribute('class');
       if (node.tagName === 'IMG') {
         const src = node.getAttribute('src') ?? '';
         if (!/^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(src)) node.remove();

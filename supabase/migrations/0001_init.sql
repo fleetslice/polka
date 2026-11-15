@@ -12,9 +12,10 @@ create table if not exists public.records (
   data       jsonb  not null,
   updated_at bigint not null,          -- метка времени клиента, мс
   device_id  text   not null,
+  synced_at  timestamptz not null default now(),  -- серверное время приёма; по нему клиенты догружают изменения
   primary key (user_id, tbl, key)
 );
-create index if not exists records_updated on public.records (user_id, updated_at);
+create index if not exists records_synced on public.records (user_id, synced_at);
 
 alter table public.records enable row level security;
 create policy "records: владелец читает"  on public.records for select using (user_id = auth.uid());
@@ -34,7 +35,7 @@ begin
   insert into records (user_id, tbl, key, data, updated_at, device_id)
   values (auth.uid(), p_tbl, p_key, p_data, p_updated_at, p_device_id)
   on conflict (user_id, tbl, key) do update
-    set data = excluded.data, updated_at = excluded.updated_at, device_id = excluded.device_id
+    set data = excluded.data, updated_at = excluded.updated_at, device_id = excluded.device_id, synced_at = now()
     where (excluded.updated_at, excluded.device_id) > (records.updated_at, records.device_id);
 end $$;
 
